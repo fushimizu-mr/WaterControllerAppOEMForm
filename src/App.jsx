@@ -8,9 +8,9 @@ const FORMSPREE_ENDPOINT = "https://formspree.io/f/xaqrykek";
 // ─── Sections ─────────────────────────────────────────────────────────────────
 const SECTIONS = [
   { id: "app-info",       label: "App Information",  icon: "⚙" },
-  { id: "filter-catalog", label: "Filter Catalog",   icon: "🔬" },
   { id: "dealer-info",    label: "OEM Profile",   icon: "🏢" },
   { id: "branding",       label: "Branding & Theme", icon: "🎨" },
+  { id: "filter-catalog", label: "Filter Catalog",   icon: "🔬" },
   { id: "documentation",  label: "Documentation",    icon: "📄" },
 ];
 
@@ -366,11 +366,6 @@ function SectionAppInfo({ data, setData }) {
       <FieldGroup columns={2}>
         <ImageUrlField label="App Icon" aspectHint="1024×1024px, PNG, no transparency" value={d.iconUrl} onChange={e => update("iconUrl", e.target.value)} />
         <ImageUrlField label="Banner / Feature Graphic" aspectHint="1024×500px for Play Store" value={d.bannerUrl} onChange={e => update("bannerUrl", e.target.value)} />
-      </FieldGroup>
-      <FieldGroup columns={3}>
-        <ImageUrlField label="Screenshot 1" aspectHint="Portrait, 1290×2796" value={d.screenshot1} onChange={e => update("screenshot1", e.target.value)} />
-        <ImageUrlField label="Screenshot 2" aspectHint="Portrait, 1290×2796" value={d.screenshot2} onChange={e => update("screenshot2", e.target.value)} />
-        <ImageUrlField label="Screenshot 3" aspectHint="Portrait, 1290×2796" value={d.screenshot3} onChange={e => update("screenshot3", e.target.value)} />
       </FieldGroup>
     </div>
   );
