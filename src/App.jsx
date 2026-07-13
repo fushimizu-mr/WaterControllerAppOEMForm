@@ -292,6 +292,37 @@ function FilterCard({ index, filter, onChange, onRemove }) {
                   ))}
               </div>
             )}
+            {(filter.programmingModes || []).includes("periodic_flush") && (
+              <div style={{ marginTop: 16, padding: "16px", background: "#F0F7FF", borderRadius: 8, border: `1.5px solid ${T.midGray}` }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: T.slate, marginBottom: 12 }}>
+                  Periodic Flush Settings
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div>
+                    <Label>Flush Interval (gallons)</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={filter.flushIntervalGallons || ""}
+                      onChange={e => update("flushIntervalGallons", e.target.value)}
+                      placeholder="e.g. 500"
+                    />
+                    <div style={{ fontSize: 11, color: "#9AAABB", marginTop: 4 }}>Trigger a flush cycle after this many gallons.</div>
+                  </div>
+                  <div>
+                    <Label>Flush Duration (seconds)</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={filter.flushDurationSeconds || ""}
+                      onChange={e => update("flushDurationSeconds", e.target.value)}
+                      placeholder="e.g. 30"
+                    />
+                    <div style={{ fontSize: 11, color: "#9AAABB", marginTop: 4 }}>How long the flush cycle runs.</div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
           <div style={{ marginTop: 20 }}>
             <ImageUrlField
