@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState } from "react";
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 // Replace with your Formspree form ID after creating one at https://formspree.io
@@ -166,37 +166,21 @@ function Chip({ label, active, onClick }) {
   );
 }
 
-function ImageUploadBox({ label, hint, aspectHint }) {
-  const [preview, setPreview] = useState(null);
-  const ref = useRef();
-  const handleFile = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => setPreview(ev.target.result);
-    reader.readAsDataURL(file);
-  };
+function ImageUrlField({ label, aspectHint, value, onChange }) {
   return (
     <div>
       <Label>{label}</Label>
-      <div
-        onClick={() => ref.current.click()}
-        style={{
-          border: `2px dashed ${preview ? T.teal : T.midGray}`, borderRadius: 10,
-          padding: 20, textAlign: "center", cursor: "pointer", background: T.inputBg,
-          minHeight: 90, display: "flex", flexDirection: "column",
-          alignItems: "center", justifyContent: "center", transition: "border-color 0.15s",
-        }}
-      >
-        {preview
-          ? <img src={preview} alt="preview" style={{ maxHeight: 80, maxWidth: "100%", borderRadius: 6 }} />
-          : <>
-              <div style={{ fontSize: 28, marginBottom: 6, color: T.muted }}>+</div>
-              <div style={{ fontSize: 12, color: T.muted }}>{hint || "Click to upload"}</div>
-              {aspectHint && <div style={{ fontSize: 11, color: "#9AAABB", marginTop: 2 }}>{aspectHint}</div>}
-            </>}
-      </div>
-      <input ref={ref} type="file" accept="image/*" onChange={handleFile} style={{ display: "none" }} />
+      <Input
+        type="url"
+        value={value || ""}
+        onChange={onChange}
+        placeholder="https://drive.google.com/... or https://dropbox.com/..."
+      />
+      {aspectHint && (
+        <div style={{ fontSize: 11, color: "#9AAABB", marginTop: 4 }}>
+          {aspectHint} — upload to Google Drive or Dropbox and paste the share link.
+        </div>
+      )}
     </div>
   );
 }
@@ -310,7 +294,12 @@ function FilterCard({ index, filter, onChange, onRemove }) {
             )}
           </div>
           <div style={{ marginTop: 20 }}>
-            <ImageUploadBox label="Filter Image" hint="Upload product image" aspectHint="Recommended: 800×800px, PNG/JPG" />
+            <ImageUrlField
+              label="Filter Image"
+              aspectHint="Recommended: 800×800px, PNG/JPG"
+              value={filter.imageUrl}
+              onChange={e => update("imageUrl", e.target.value)}
+            />
           </div>
         </div>
       )}
@@ -374,15 +363,15 @@ function SectionAppInfo({ data, setData }) {
           <Input value={d.keywords || ""} onChange={e => update("keywords", e.target.value)} placeholder="water filter, home water, softener, purification (comma-separated)" />
         </Field>
       </FieldGroup>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 4 }}>
-        <ImageUploadBox label="App Icon" hint="Upload app icon" aspectHint="1024×1024px, PNG, no transparency" />
-        <ImageUploadBox label="Banner / Feature Graphic" hint="Upload banner image" aspectHint="1024×500px for Play Store" />
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginTop: 16 }}>
-        <ImageUploadBox label="Screenshot 1" hint="App screenshot" aspectHint="Portrait, 1290×2796" />
-        <ImageUploadBox label="Screenshot 2" hint="App screenshot" />
-        <ImageUploadBox label="Screenshot 3" hint="App screenshot" />
-      </div>
+      <FieldGroup columns={2}>
+        <ImageUrlField label="App Icon" aspectHint="1024×1024px, PNG, no transparency" value={d.iconUrl} onChange={e => update("iconUrl", e.target.value)} />
+        <ImageUrlField label="Banner / Feature Graphic" aspectHint="1024×500px for Play Store" value={d.bannerUrl} onChange={e => update("bannerUrl", e.target.value)} />
+      </FieldGroup>
+      <FieldGroup columns={3}>
+        <ImageUrlField label="Screenshot 1" aspectHint="Portrait, 1290×2796" value={d.screenshot1} onChange={e => update("screenshot1", e.target.value)} />
+        <ImageUrlField label="Screenshot 2" aspectHint="Portrait, 1290×2796" value={d.screenshot2} onChange={e => update("screenshot2", e.target.value)} />
+        <ImageUrlField label="Screenshot 3" aspectHint="Portrait, 1290×2796" value={d.screenshot3} onChange={e => update("screenshot3", e.target.value)} />
+      </FieldGroup>
     </div>
   );
 }
@@ -468,7 +457,12 @@ function SectionDealerInfo({ data, setData }) {
           <Input value={d.emergency || ""} onChange={e => update("emergency", e.target.value)} placeholder="(optional) after-hours number" />
         </Field>
       </FieldGroup>
-      <ImageUploadBox label="Dealer Logo" hint="Upload dealer logo" aspectHint="SVG or PNG, min 400×200px" />
+      <ImageUrlField
+        label="Dealer Logo"
+        aspectHint="SVG or PNG, min 400×200px"
+        value={d.logoUrl}
+        onChange={e => update("logoUrl", e.target.value)}
+      />
     </div>
   );
 }
