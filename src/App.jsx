@@ -285,12 +285,6 @@ function FilterCard({ index, filter, onChange, onRemove }) {
               <Input type="number" value={filter.lifespanDays || ""} onChange={e => update("lifespanDays", e.target.value)} placeholder="e.g. 365" />
             </Field>
           </FieldGroup>
-          <Field label="Compatible Flow Meter">
-            <Select value={filter.flowMeter || ""} onChange={e => update("flowMeter", e.target.value)}>
-              <option value="">Select flow meter...</option>
-              {FLOW_METER_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </Select>
-          </Field>
           <div style={{ marginTop: 20 }}>
             <Label>Programming Modes</Label>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}>
