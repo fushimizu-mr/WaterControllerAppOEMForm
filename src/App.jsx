@@ -365,7 +365,7 @@ function SectionAppInfo({ data, setData }) {
       </FieldGroup>
       <FieldGroup columns={2}>
         <ImageUrlField label="App Icon" aspectHint="1024×1024px, PNG, no transparency" value={d.iconUrl} onChange={e => update("iconUrl", e.target.value)} />
-        <ImageUrlField label="Banner / Feature Graphic" aspectHint="1024×500px for Play Store" value={d.bannerUrl} onChange={e => update("bannerUrl", e.target.value)} />
+        <ImageUrlField label="Banner / Feature Graphic" aspectHint="1024×500px for App Store" value={d.bannerUrl} onChange={e => update("bannerUrl", e.target.value)} />
       </FieldGroup>
     </div>
   );
