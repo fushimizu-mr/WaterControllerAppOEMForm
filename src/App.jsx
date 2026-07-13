@@ -442,7 +442,7 @@ function SectionDealerInfo({ data, setData }) {
       />
       <FieldGroup columns={2}>
         <Field label="Dealer / Business Name" required>
-          <Input value={d.name || ""} onChange={e => update("name", e.target.value)} placeholder="e.g. Pacific Water Solutions" />
+          <Input value={d.name || ""} onChange={e => update("name", e.target.value)} placeholder="e.g. Crusader Water Systems" />
         </Field>
         <Field label="Contact Phone">
           <Input value={d.phone || ""} onChange={e => update("phone", e.target.value)} placeholder="(800) 555-0100" />
@@ -540,11 +540,6 @@ function SectionBranding({ data, setData }) {
         </Field>
         <Field label="Terms of Service URL">
           <Input value={d.tosUrl || ""} onChange={e => update("tosUrl", e.target.value)} placeholder="https://yourco.com/terms" />
-        </Field>
-      </FieldGroup>
-      <FieldGroup>
-        <Field label="App Store / Play Store URL (if already live)">
-          <Input value={d.storeUrl || ""} onChange={e => update("storeUrl", e.target.value)} placeholder="https://apps.apple.com/app/..." />
         </Field>
       </FieldGroup>
     </div>
