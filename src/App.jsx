@@ -439,7 +439,7 @@ function SectionDealerInfo({ data, setData }) {
           <Input value={d.website || ""} onChange={e => update("website", e.target.value)} placeholder="https://yourcompany.com" />
         </Field>
       </FieldGroup>
-      /*
+      {/*
       <FieldGroup>
         <Field label="Service Coverage Area">
           <Input value={d.coverage || ""} onChange={e => update("coverage", e.target.value)} placeholder="e.g. Pacific Northwest, ZIP codes 97xxx-98xxx" />
@@ -450,7 +450,7 @@ function SectionDealerInfo({ data, setData }) {
           <Textarea value={d.bio || ""} onChange={e => update("bio", e.target.value)} placeholder="Short paragraph about your business shown on the About screen." />
         </Field>
       </FieldGroup>
-      */
+      */}
       <FieldGroup columns={2}>
         <Field label="Business Hours">
           <Input value={d.hours || ""} onChange={e => update("hours", e.target.value)} placeholder="Mon-Fri 8am-5pm PT" />
