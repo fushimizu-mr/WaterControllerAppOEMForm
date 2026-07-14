@@ -566,7 +566,7 @@ function SectionAppInfo({ data, setData }) {
     <div>
       <SectionHeader
         title="App Information"
-        subtitle="Metadata displayed in the App Store and Google Play listings."
+        subtitle="Metadata displayed in the App Store listing."
       />
       <FieldGroup columns={2}>
         <Field label="App Name" required>
