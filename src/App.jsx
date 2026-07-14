@@ -5,6 +5,35 @@ import { useState } from "react";
 // e.g. "https://formspree.io/f/xyzabcde"
 const FORMSPREE_ENDPOINT = "https://formspree.io/f/xaqrykek";
 
+// Access code for the portal — change this to whatever you share with dealers
+const ACCESS_CODE = "OEM2026";
+
+// localStorage key for save/resume
+const STORAGE_KEY = "myufi_dealer_form_v1";
+
+// localStorage key for submission history list
+const HISTORY_KEY = "myufi_submission_history";
+
+// Generate a stable ID from dealer/company name + timestamp
+function makeSubmissionId(data) {
+  const name = (data?.dealer?.name || data?.appInfo?.companyName || "draft")
+    .toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-").slice(0, 24);
+  return `${name}-${Date.now()}`;
+}
+
+// Load history array from localStorage
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY)) || []; } catch { return []; }
+}
+
+// Save a history entry
+function saveHistoryEntry(entry) {
+  const history = loadHistory();
+  const idx = history.findIndex(h => h.submissionId === entry.submissionId);
+  if (idx >= 0) history[idx] = entry; else history.unshift(entry);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 20))); // cap at 20
+}
+
 // ─── Sections ─────────────────────────────────────────────────────────────────
 const SECTIONS = [
   { id: "app-info",       label: "App Information",  icon: "⚙" },
@@ -181,6 +210,174 @@ function ImageUrlField({ label, aspectHint, value, onChange }) {
           {aspectHint} — upload to Google Drive or Dropbox and paste the share link.
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── History Drawer ───────────────────────────────────────────────────────────
+function HistoryDrawer({ open, onClose, onLoad }) {
+  const history = loadHistory();
+  if (!open) return null;
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 100, display: "flex" }}>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{ flex: 1, background: "rgba(11,31,58,0.45)" }} />
+      {/* Panel */}
+      <div style={{ width: 420, background: T.white, boxShadow: "-4px 0 24px rgba(0,0,0,0.12)", display: "flex", flexDirection: "column", overflowY: "auto" }}>
+        <div style={{ padding: "24px 24px 16px", borderBottom: `1.5px solid ${T.glacier}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 16, color: T.navy }}>Submission History</div>
+            <div style={{ fontSize: 12, color: T.muted, marginTop: 2 }}>Load a previous draft or submission to revise and resubmit.</div>
+          </div>
+          <button type="button" onClick={onClose} style={{ background: "none", border: "none", fontSize: 20, color: T.muted, cursor: "pointer" }}>✕</button>
+        </div>
+        <div style={{ flex: 1, padding: 16 }}>
+          {history.length === 0 && (
+            <div style={{ textAlign: "center", padding: 48, color: "#9AAABB", fontSize: 13 }}>
+              No previous submissions found on this device.
+            </div>
+          )}
+          {history.map((entry) => {
+            const submittedAt = entry.submittedAt ? new Date(entry.submittedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : null;
+            const savedAt = entry.savedAt ? new Date(entry.savedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" }) : null;
+            const isRevision = entry.revisionOf != null;
+            return (
+              <div key={entry.submissionId} style={{ border: `1.5px solid ${T.midGray}`, borderRadius: 10, padding: 16, marginBottom: 12, background: T.lightGray }}>
+                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: T.navy }}>
+                      {entry.label || "Untitled"}
+                    </div>
+                    <div style={{ fontSize: 11, fontFamily: "monospace", color: T.muted, marginTop: 2 }}>{entry.submissionId}</div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                      {submittedAt && (
+                        <span style={{ fontSize: 11, background: "#E6F4F1", color: T.teal, borderRadius: 4, padding: "2px 8px", fontWeight: 600 }}>
+                          Submitted {submittedAt}
+                        </span>
+                      )}
+                      {!submittedAt && savedAt && (
+                        <span style={{ fontSize: 11, background: T.glacier, color: T.slate, borderRadius: 4, padding: "2px 8px", fontWeight: 600 }}>
+                          Draft saved {savedAt}
+                        </span>
+                      )}
+                      {isRevision && (
+                        <span style={{ fontSize: 11, background: "#FFF3CD", color: "#856404", borderRadius: 4, padding: "2px 8px", fontWeight: 600 }}>
+                          Rev {entry.revisionNumber || ""}
+                        </span>
+                      )}
+                      <span style={{ fontSize: 11, background: T.midGray, color: T.muted, borderRadius: 4, padding: "2px 8px" }}>
+                        v{entry.version || 1}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { onLoad(entry); onClose(); }}
+                    style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: T.slate, color: T.white, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}
+                  >
+                    Load
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Access Gate ──────────────────────────────────────────────────────────────
+function AccessGate({ onUnlock }) {
+  const [code, setCode]     = useState("");
+  const [error, setError]   = useState(false);
+  const [focused, setFocused] = useState(false);
+
+  const attempt = () => {
+    if (code.trim().toUpperCase() === ACCESS_CODE.toUpperCase()) {
+      sessionStorage.setItem("myufi_auth", "1");
+      onUnlock();
+    } else {
+      setError(true);
+      setCode("");
+      setTimeout(() => setError(false), 3000);
+    }
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#F0F5FA", display: "flex", flexDirection: "column" }}>
+      <div style={{ background: T.navy, padding: "16px 32px", display: "flex", alignItems: "center", gap: 16 }}>
+        <div style={{ width: 36, height: 36, borderRadius: 8, background: `linear-gradient(135deg, ${T.slate}, ${T.teal})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>💧</div>
+        <div>
+          <div style={{ color: T.white, fontWeight: 700, fontSize: 16 }}>My Water Manager</div>
+          <div style={{ color: "#6B9DC2", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase" }}>OEM Configuration Portal</div>
+        </div>
+      </div>
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ background: T.white, borderRadius: 16, border: `1.5px solid ${T.midGray}`, padding: 48, width: "100%", maxWidth: 400, boxShadow: "0 4px 24px rgba(0,0,0,0.07)" }}>
+          <div style={{ textAlign: "center", marginBottom: 32 }}>
+            <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+            <h2 style={{ color: T.navy, fontSize: 20, fontWeight: 700, marginBottom: 8 }}>Portal Access</h2>
+            <p style={{ color: T.muted, fontSize: 13, lineHeight: 1.6 }}>
+              Enter the access code provided by your RFX representative to continue.
+            </p>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <Label>Access Code</Label>
+            <input
+              type="password"
+              value={code}
+              onChange={e => setCode(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && attempt()}
+              placeholder="Enter access code"
+              style={{
+                width: "100%", boxSizing: "border-box", background: error ? "#FFF0F0" : T.inputBg,
+                border: `1.5px solid ${error ? "#E53E3E" : focused ? T.teal : T.midGray}`,
+                borderRadius: 8, padding: "12px 14px", fontSize: 15, color: T.ink,
+                outline: "none", fontFamily: "inherit", textAlign: "center",
+                letterSpacing: "0.2em", transition: "border-color 0.15s",
+              }}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
+              autoFocus
+            />
+            {error && (
+              <div style={{ marginTop: 8, fontSize: 12, color: "#E53E3E", textAlign: "center", fontWeight: 600 }}>
+                Incorrect access code. Please try again.
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={attempt}
+            style={{
+              width: "100%", padding: "12px", borderRadius: 8, border: "none",
+              background: `linear-gradient(135deg, ${T.slate}, ${T.teal})`,
+              color: T.white, fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+            }}
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Save Banner ──────────────────────────────────────────────────────────────
+function SaveBanner({ lastSaved, onClear }) {
+  if (!lastSaved) return null;
+  const time = new Date(lastSaved).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: T.glacier, border: `1px solid ${T.midGray}`, borderRadius: 8, padding: "8px 14px", marginBottom: 16, fontSize: 12 }}>
+      <span style={{ color: T.slate }}>✓ Draft saved at {time} — your progress will resume if you close this tab.</span>
+      <button
+        type="button"
+        onClick={onClear}
+        style={{ background: "none", border: "none", color: T.muted, cursor: "pointer", fontSize: 11, fontFamily: "inherit", textDecoration: "underline" }}
+      >
+        Clear saved data
+      </button>
     </div>
   );
 }
@@ -670,18 +867,109 @@ function FlowProgress({ current, total }) {
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [active, setActive]       = useState("app-info");
-  const [data, setData]           = useState({});
-  const [submitted, setSubmitted] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [unlocked, setUnlocked]       = useState(() => !!sessionStorage.getItem("myufi_auth"));
+  const [active, setActive]           = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY))?.activeSection || "app-info"; } catch { return "app-info"; }
+  });
+  const [data, setData]               = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY))?.data || {}; } catch { return {}; }
+  });
+  const [lastSaved, setLastSaved]     = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY))?.savedAt || null; } catch { return null; }
+  });
+  const [submissionId, setSubmissionId] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY))?.submissionId || null; } catch { return null; }
+  });
+  const [version, setVersion]         = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY))?.version || 1; } catch { return 1; }
+  });
+  const [revisionOf, setRevisionOf]   = useState(() => {
+    try { return JSON.parse(localStorage.getItem(STORAGE_KEY))?.revisionOf || null; } catch { return null; }
+  });
+  const [submitted, setSubmitted]     = useState(false);
+  const [submitting, setSubmitting]   = useState(false);
   const [submitError, setSubmitError] = useState(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+
+  // Persist everything to localStorage
+  const persistData = (newData, newSection, sid, ver, revOf) => {
+    const payload = {
+      data: newData,
+      activeSection: newSection,
+      savedAt: Date.now(),
+      submissionId: sid,
+      version: ver,
+      revisionOf: revOf,
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      setLastSaved(payload.savedAt);
+      // Keep history entry current as a draft
+      if (sid) {
+        saveHistoryEntry({
+          submissionId: sid,
+          label: newData?.dealer?.name || newData?.appInfo?.companyName || "Untitled",
+          savedAt: payload.savedAt,
+          submittedAt: null,
+          version: ver,
+          revisionOf: revOf,
+          revisionNumber: ver > 1 ? ver - 1 : undefined,
+        });
+      }
+    } catch { /* storage full — fail silently */ }
+  };
+
+  const handleSetData = (updater) => {
+    setData(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      // Mint a submissionId on first data entry if we don't have one
+      const sid = submissionId || makeSubmissionId(next);
+      if (!submissionId) setSubmissionId(sid);
+      persistData(next, active, sid, version, revisionOf);
+      return next;
+    });
+  };
+
+  const handleSetActive = (section) => {
+    setActive(section);
+    persistData(data, section, submissionId, version, revisionOf);
+  };
+
+  const handleClearSaved = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setData({});
+    setActive("app-info");
+    setLastSaved(null);
+    setSubmissionId(null);
+    setVersion(1);
+    setRevisionOf(null);
+  };
+
+  // Load a history entry into the form
+  const handleLoadHistory = (entry) => {
+    try {
+      const stored = loadHistory().find(h => h.submissionId === entry.submissionId);
+      // Try to find fuller data from the STORAGE_KEY if it matches
+      const current = JSON.parse(localStorage.getItem(STORAGE_KEY));
+      const loadedData = (current?.submissionId === entry.submissionId ? current?.data : null) || {};
+      const newVersion = (entry.version || 1) + 1;
+      const sid = entry.submissionId;
+      setData(loadedData);
+      setActive("app-info");
+      setSubmissionId(sid);
+      setRevisionOf(entry.revisionOf || sid);
+      setVersion(newVersion);
+      setLastSaved(null);
+      persistData(loadedData, "app-info", sid, newVersion, entry.revisionOf || sid);
+    } catch { /* fail silently */ }
+  };
 
   const sectionComponents = {
-    "app-info":       <SectionAppInfo       data={data} setData={setData} />,
-    "filter-catalog": <SectionFilterCatalog data={data} setData={setData} />,
-    "dealer-info":    <SectionDealerInfo    data={data} setData={setData} />,
-    "branding":       <SectionBranding      data={data} setData={setData} />,
-    "documentation":  <SectionDocumentation data={data} setData={setData} />,
+    "app-info":       <SectionAppInfo       data={data} setData={handleSetData} />,
+    "filter-catalog": <SectionFilterCatalog data={data} setData={handleSetData} />,
+    "dealer-info":    <SectionDealerInfo    data={data} setData={handleSetData} />,
+    "branding":       <SectionBranding      data={data} setData={handleSetData} />,
+    "documentation":  <SectionDocumentation data={data} setData={handleSetData} />,
   };
 
   const currentIndex = SECTIONS.findIndex(s => s.id === active);
@@ -690,10 +978,17 @@ export default function App() {
   const handleSubmit = async () => {
     setSubmitting(true);
     setSubmitError(null);
+    const sid = submissionId || makeSubmissionId(data);
     try {
       const payload = {
         ...data,
-        _subject: `New Dealer Configuration — ${data?.dealer?.name || data?.appInfo?.companyName || "Unknown Dealer"}`,
+        _meta: {
+          submissionId: sid,
+          version,
+          revisionOf: revisionOf || null,
+          submittedAt: new Date().toISOString(),
+        },
+        _subject: `OEM Config ${revisionOf ? `(Revision v${version})` : "(New)"} — ${data?.dealer?.name || data?.appInfo?.companyName || "Unknown"}`,
       };
       const res = await fetch(FORMSPREE_ENDPOINT, {
         method: "POST",
@@ -701,6 +996,17 @@ export default function App() {
         body: JSON.stringify(payload),
       });
       if (res.ok) {
+        // Record submission in history
+        saveHistoryEntry({
+          submissionId: sid,
+          label: data?.dealer?.name || data?.appInfo?.companyName || "Untitled",
+          savedAt: Date.now(),
+          submittedAt: Date.now(),
+          version,
+          revisionOf: revisionOf || null,
+          revisionNumber: version > 1 ? version - 1 : undefined,
+        });
+        localStorage.removeItem(STORAGE_KEY);
         setSubmitted(true);
       } else {
         const err = await res.json();
@@ -713,6 +1019,8 @@ export default function App() {
     }
   };
 
+  if (!unlocked) return <AccessGate onUnlock={() => setUnlocked(true)} />;
+
   if (submitted) {
     return (
       <div style={{ minHeight: "100vh", background: T.lightGray, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -720,15 +1028,24 @@ export default function App() {
           <div style={{ fontSize: 56, marginBottom: 16 }}>✅</div>
           <h2 style={{ color: T.navy, fontSize: 24, marginBottom: 8 }}>Configuration Submitted</h2>
           <p style={{ color: T.muted, fontSize: 15, lineHeight: 1.6 }}>
-            Your dealer customization has been received. The development team will review and reach out within 2 business days.
+            Your OEM customization has been received. The development team will review and reach out within 2 business days.
           </p>
-          <button
-            type="button"
-            onClick={() => { setSubmitted(false); setData({}); setActive("app-info"); }}
-            style={{ marginTop: 24, padding: "12px 28px", borderRadius: 8, background: T.slate, color: T.white, border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
-          >
-            Submit Another
-          </button>
+          <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 24 }}>
+            <button
+              type="button"
+              onClick={() => { setSubmitted(false); setData({}); setActive("app-info"); setLastSaved(null); setSubmissionId(null); setVersion(1); setRevisionOf(null); }}
+              style={{ padding: "12px 28px", borderRadius: 8, background: T.slate, color: T.white, border: "none", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              New Submission
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSubmitted(false); setHistoryOpen(true); }}
+              style={{ padding: "12px 28px", borderRadius: 8, background: "none", color: T.slate, border: `1.5px solid ${T.slate}`, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+            >
+              View History
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -736,16 +1053,34 @@ export default function App() {
 
   return (
     <div style={{ minHeight: "100vh", background: "#F0F5FA", display: "flex", flexDirection: "column" }}>
+      <HistoryDrawer open={historyOpen} onClose={() => setHistoryOpen(false)} onLoad={handleLoadHistory} />
+
       {/* Header */}
-      <div style={{ background: T.navy, padding: "16px 32px", display: "flex", alignItems: "center", gap: 16 }}>
-        <div style={{ width: 36, height: 36, borderRadius: 8, background: `linear-gradient(135deg, ${T.slate}, ${T.teal})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>
-          💧
-        </div>
-        <div>
-          <div style={{ color: T.white, fontWeight: 700, fontSize: 16 }}>My Water Manager</div>
-          <div style={{ color: "#6B9DC2", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            OEM Configuration Portal
+      <div style={{ background: T.navy, padding: "16px 32px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: `linear-gradient(135deg, ${T.slate}, ${T.teal})`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>
+            💧
           </div>
+          <div>
+            <div style={{ color: T.white, fontWeight: 700, fontSize: 16 }}>My Water Manager</div>
+            <div style={{ color: "#6B9DC2", fontSize: 11, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+              OEM Configuration Portal
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {revisionOf && (
+            <span style={{ fontSize: 11, background: "#FFF3CD", color: "#856404", borderRadius: 4, padding: "4px 10px", fontWeight: 600 }}>
+              Revision v{version}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            style={{ padding: "8px 16px", borderRadius: 8, border: `1.5px solid rgba(255,255,255,0.2)`, background: "rgba(255,255,255,0.08)", color: T.white, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+          >
+            History
+          </button>
         </div>
       </div>
 
@@ -756,7 +1091,7 @@ export default function App() {
             {SECTIONS.map((s, i) => (
               <div
                 key={s.id}
-                onClick={() => setActive(s.id)}
+                onClick={() => handleSetActive(s.id)}
                 style={{
                   display: "flex", alignItems: "center", gap: 10,
                   padding: "11px 14px", borderRadius: 8, marginBottom: 4, cursor: "pointer",
@@ -781,6 +1116,7 @@ export default function App() {
         {/* Content */}
         <div style={{ flex: 1, minWidth: 0 }}>
           <FlowProgress current={currentIndex + 1} total={SECTIONS.length} />
+          <SaveBanner lastSaved={lastSaved} onClear={handleClearSaved} />
           <Card>
             {sectionComponents[active]}
 
@@ -793,7 +1129,7 @@ export default function App() {
             <div style={{ display: "flex", justifyContent: "space-between", marginTop: 32, paddingTop: 20, borderTop: `1.5px solid ${T.glacier}` }}>
               <button
                 type="button"
-                onClick={() => currentIndex > 0 && setActive(SECTIONS[currentIndex - 1].id)}
+                onClick={() => currentIndex > 0 && handleSetActive(SECTIONS[currentIndex - 1].id)}
                 disabled={currentIndex === 0}
                 style={{
                   padding: "10px 22px", borderRadius: 8, border: `1.5px solid ${T.midGray}`,
@@ -809,7 +1145,7 @@ export default function App() {
                 ? (
                   <button
                     type="button"
-                    onClick={() => setActive(SECTIONS[currentIndex + 1].id)}
+                    onClick={() => handleSetActive(SECTIONS[currentIndex + 1].id)}
                     style={{ padding: "10px 22px", borderRadius: 8, border: "none", background: T.slate, color: T.white, fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
                   >
                     Next
@@ -827,7 +1163,7 @@ export default function App() {
                       cursor: submitting ? "default" : "pointer", fontFamily: "inherit",
                     }}
                   >
-                    {submitting ? "Submitting..." : "Submit Configuration ✓"}
+                    {submitting ? "Submitting..." : revisionOf ? `Submit Revision v${version} ✓` : "Submit Configuration ✓"}
                   </button>
                 )}
             </div>
